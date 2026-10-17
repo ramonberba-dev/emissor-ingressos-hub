@@ -1,0 +1,47 @@
+name: Emissor de ingressos
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+    inputs:
+      teste:
+        description: "Enviar um ingresso de teste para o e-mail do Ramon"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: emissor
+  cancel-in-progress: false
+
+jobs:
+  emitir:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -q -r requirements.txt
+      - name: Emitir ingressos
+        env:
+          TICKET_SECRET: ${{ secrets.TICKET_SECRET }}
+          NUVEMSHOP_TOKEN: ${{ secrets.NUVEMSHOP_TOKEN }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          WHATSAPP_FONE: ${{ secrets.WHATSAPP_FONE }}
+          CALLMEBOT_APIKEY: ${{ secrets.CALLMEBOT_APIKEY }}
+          TESTE: ${{ inputs.teste }}
+        run: python emissor.py
+      - name: Guardar pedidos processados
+        run: |
+          if ! git diff --quiet state.json; then
+            git config user.name "emissor-hub"
+            git config user.email "emissor-hub@users.noreply.github.com"
+            git add state.json
+            git commit -m "Pedidos processados"
+            git push
+          fi
