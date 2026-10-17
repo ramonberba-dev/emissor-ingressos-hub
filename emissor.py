@@ -143,7 +143,7 @@ def email_html(nome, pedido, ingressos):
   </td></tr>
   <tr><td style="background:#EFE7E1;padding:20px 28px;font:15px/1.6 Arial,sans-serif;color:#2B1E23">
     <b>1º Encontro do Hub de Empreendedores Católicos</b><br>
-    Sábado, 14 de novembro de 2026 · 10h às 14h<br>
+    Sábado, 14 de novembro de 2026 · 10h às 13h30<br>
     Coco Bambu Niterói · Plaza Shopping, 4º piso · Rua XV de Novembro, 8 · Centro · Niterói/RJ<br>
     <span style="color:#6E5D63">Pedido #{pedido}</span>
   </td></tr>
