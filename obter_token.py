@@ -9,8 +9,8 @@ import json
 import urllib.request
 
 client_id = input("ID do app (client_id): ").strip()
-client_secret = getpass.getpass("Segredo do app (client_secret, não aparece ao digitar): ").strip()
-code = input("Código da URL (o valor depois de code=): ").strip()
+client_secret = input("Segredo do app (client_secret): ").strip().strip('"')
+code = input("Código (o valor depois de \"code\":): ").strip().strip('"').strip(',').strip('"')
 
 body = json.dumps({"client_id": client_id, "client_secret": client_secret,
                    "grant_type": "authorization_code", "code": code}).encode()
