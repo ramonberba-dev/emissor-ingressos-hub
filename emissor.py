@@ -33,6 +33,7 @@ STORE_ID = "6185693"
 PRODUCT_ID = 374834069
 PORTARIA_URL = "https://claude.ai/artifact/3cWR4VGqfT63zWuGrsrjU6"
 TICKET_PAGE = "https://hubdeempreendedores.usevox.com.br/ingresso/"
+FORM_URL = "https://hubdeempreendedores.usevox.com.br/formulario/?pedido="   # formulário dos participantes
 REMETENTE = "ramonberba@gmail.com"
 INICIO_VENDAS = "2026-10-16T00:00:00-03:00"
 FIM = datetime(2026, 11, 15, 3, 0, tzinfo=timezone.utc)  # depois do evento, para de rodar
@@ -151,6 +152,15 @@ def email_html(nome, pedido, ingressos):
     Apresente o QR Code abaixo na entrada, no celular ou impresso. Cada QR Code vale para <b>uma pessoa</b> e só pode ser usado uma vez.
   </td></tr>
   {blocos}
+  <tr><td style="padding:0 28px 22px">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#4A1C2F;border-radius:14px">
+      <tr><td style="padding:22px;text-align:center;font:15px/1.55 Arial,sans-serif;color:#F5EEE6">
+        <div style="font:600 20px Georgia,serif;color:#F5EEE6">Falta só um passo</div>
+        <div style="margin-top:8px;color:#D9C7B9">Para personalizarmos a sua experiência (a mesa, as conexões e os exemplos das palestras), responda algumas perguntas rápidas. Leva uns 2 minutos.</div>
+        <a href="{FORM_URL}{pedido}" style="display:inline-block;margin-top:16px;background:#B89F77;color:#2A1018;text-decoration:none;font:600 14px Arial,sans-serif;padding:12px 24px;border-radius:999px">Responder agora</a>
+      </td></tr>
+    </table>
+  </td></tr>
   <tr><td style="padding:4px 28px 26px;font:14px/1.6 Arial,sans-serif;color:#6E5D63">
     Credenciamento a partir das 10h. Tem restrição alimentar ou alguma dúvida? Fale com a gente no WhatsApp (21) 99658-8197.<br><br>
     <i style="font-family:Georgia,serif;color:#5A2439">"Se o Senhor não edificar a casa, em vão trabalham os que a edificam." (Sl 127,1)</i>
@@ -169,6 +179,7 @@ def enviar_email(destino, nome, pedido, codigos):
     texto = (f"Olá, {nome}! Seu ingresso para o 1º Encontro do Hub (sábado, 14/11, 10h, Coco Bambu Niterói) "
              f"está garantido. Pedido #{pedido}.\n\n" +
              "\n".join(f"Ingresso {k}: {TICKET_PAGE}#{c}" for k, (c, _) in enumerate(ingressos, 1)) +
+             f"\n\nPara personalizarmos a sua experiência, responda o formulário rápido (2 minutos): {FORM_URL}{pedido}"
              "\n\nApresente o QR Code na entrada. Dúvidas: WhatsApp (21) 99658-8197.")
     alt.attach(MIMEText(texto, "plain", "utf-8"))
     alt.attach(MIMEText(email_html(nome, pedido, ingressos), "html", "utf-8"))
@@ -209,6 +220,7 @@ def aviso_venda(nome, fone, pedido, n, gateway, codigos, restam):
     links = " ".join(f"{TICKET_PAGE}#{c}" for c in codigos)
     msg_cliente = (f"Olá, {primeiro}! Aqui é o Ramon, do Hub de Empreendedores Católicos. "
                    f"Seu ingresso para o 1º Encontro (sábado, 14/11, 10h, Coco Bambu Niterói): {links} "
+                   f"Para personalizarmos a sua experiência, responda estas perguntas rápidas (2 minutos): {FORM_URL}{pedido} "
                    f"Apresente o QR Code na entrada. Até lá! 🙏")
     d = so_digitos(fone)
     wa = f"https://wa.me/{d}?text={urllib.parse.quote(msg_cliente)}" if d else "(comprador sem telefone)"
