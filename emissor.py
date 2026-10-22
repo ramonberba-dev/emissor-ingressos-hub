@@ -376,6 +376,12 @@ def main():
         print("Teste enviado para o e-mail do Ramon (pedido 0).")
         return
 
+    flag_email = os.path.join(os.path.dirname(os.path.abspath(__file__)), "email_teste.flag")
+    if os.path.exists(flag_email):
+        enviar_email(REMETENTE, "Ramon", 0, [codigo(0, 1, 1, "Ramon")])
+        os.remove(flag_email)
+        print("Ingresso de teste enviado para o e-mail do Ramon.")
+
     flag = os.path.join(os.path.dirname(os.path.abspath(__file__)), "aviso_teste.flag")
     if os.path.exists(flag):
         teste = aviso_venda("Teste do aviso", "21996588197", 0, 1, "Pix", [codigo(0, 1, 1, "Teste")], None)
