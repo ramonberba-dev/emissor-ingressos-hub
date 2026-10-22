@@ -18,6 +18,7 @@ import os
 import re
 import smtplib
 import sys
+import time
 import unicodedata
 import urllib.parse
 from datetime import datetime, timezone, timedelta
@@ -219,16 +220,29 @@ def avisar_telegram(texto):
 
 
 def avisar_ramon(texto):
-    avisar_telegram(texto)
+    """texto: str ou lista de partes. No WhatsApp (CallMeBot corta ~720 caracteres) cada parte vai
+    numa mensagem separada; no Telegram vai tudo junto."""
+    partes = [texto] if isinstance(texto, str) else list(texto)
+    avisar_telegram("\n\n".join(partes))
     if not (WA_FONE and WA_KEY):
         print("Aviso no WhatsApp ignorado: segredos do CallMeBot não configurados.")
         return
-    try:
-        r = requests.get("https://api.callmebot.com/whatsapp.php",
-                         params={"phone": WA_FONE, "text": texto, "apikey": WA_KEY}, timeout=30)
-        print("Aviso no WhatsApp:", r.status_code)
-    except Exception as e:
-        print("Aviso no WhatsApp falhou:", type(e).__name__)
+    envios = []
+    for p in partes:
+        while len(p) > 550:
+            corte = p.rfind(" ", 0, 550)
+            corte = corte if corte > 300 else 550
+            envios.append(p[:corte]); p = p[corte:].lstrip()
+        envios.append(p)
+    for k, p in enumerate(envios):
+        if k:
+            time.sleep(8)
+        try:
+            r = requests.get("https://api.callmebot.com/whatsapp.php",
+                             params={"phone": WA_FONE, "text": p, "apikey": WA_KEY}, timeout=30)
+            print(f"Aviso no WhatsApp {k + 1}/{len(envios)}:", r.status_code)
+        except Exception as e:
+            print("Aviso no WhatsApp falhou:", type(e).__name__)
 
 
 def aviso_venda(nome, fone, pedido, n, gateway, codigos, restam):
@@ -239,12 +253,12 @@ def aviso_venda(nome, fone, pedido, n, gateway, codigos, restam):
                    f"Para personalizarmos a sua experiência, responda estas perguntas rápidas (2 minutos): {FORM_URL}{pedido} "
                    f"Apresente o QR Code na entrada. Até lá! 🙏")
     d = so_digitos(fone)
-    wa = f"https://wa.me/{d}?text={urllib.parse.quote(msg_cliente)}" if d else "(comprador sem telefone)"
+    conversa = f"https://wa.me/{d}" if d else "(comprador sem telefone)"
     estoque = f"\n🔢 Restam {restam} no lote atual" if restam is not None else ""
-    return (f"🎟️ Ingresso vendido! 1º Encontro do Hub\n👤 {nome} · {n} ingresso(s) · {gateway}\n"
+    info = (f"🎟️ Ingresso vendido! 1º Encontro do Hub\n👤 {nome} · {n} ingresso(s) · {gateway}\n"
             f"📱 {fone or '-'}\n🧾 Pedido #{pedido}{estoque}\n✉️ E-mail com o QR já enviado.\n"
-            f"👉 Mandar no WhatsApp dele(a): {wa}\n\n"
-            f"📋 Ou copie e cole no WhatsApp dele(a):\n{msg_cliente}")
+            f"👉 Abrir conversa: {conversa}\n📋 Na próxima mensagem vai o texto para copiar e colar.")
+    return [info, msg_cliente]
 
 
 # ---------- estado ----------
@@ -279,9 +293,17 @@ def main():
         nome = "Ramon Berba"
         cods = [codigo(0, 1, 1, nome)]
         enviar_email(REMETENTE, nome, 0, cods)
-        avisar_ramon("[TESTE] " + aviso_venda(nome, "21996588197", 0, 1, "Pix", cods, None))
+        teste = aviso_venda(nome, "21996588197", 0, 1, "Pix", cods, None)
+        avisar_ramon(["[TESTE] " + teste[0]] + teste[1:])
         print("Teste enviado para o e-mail do Ramon (pedido 0).")
         return
+
+    flag = os.path.join(os.path.dirname(os.path.abspath(__file__)), "aviso_teste.flag")
+    if os.path.exists(flag):
+        teste = aviso_venda("Teste do aviso", "21996588197", 0, 1, "Pix", [codigo(0, 1, 1, "Teste")], None)
+        avisar_ramon(["[TESTE] " + teste[0]] + teste[1:])
+        os.remove(flag)
+        print("Aviso de teste enviado.")
 
     if datetime.now(timezone.utc) > FIM:
         print("Evento encerrado: nada a fazer.")
