@@ -199,6 +199,10 @@ def enviar_email(destino, nome, pedido, codigos):
         img.add_header("Content-ID", f"<{cid}>")
         img.add_header("Content-Disposition", "inline", filename=f"ingresso-{cod[:12]}.png")
         msg.attach(img)
+    smtp_enviar(de, destino, msg, usa_brevo)
+
+
+def smtp_enviar(de, destino, msg, usa_brevo):
     if usa_brevo:
         with smtplib.SMTP("smtp-relay.brevo.com", 587, timeout=60) as s:
             s.starttls()
@@ -208,6 +212,42 @@ def enviar_email(destino, nome, pedido, codigos):
     with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=60) as s:
         s.login(REMETENTE, GMAIL_PASS)
         s.sendmail(REMETENTE, [destino], msg.as_string())
+
+
+def enviar_cancelamento(destino, nome, pedido, n):
+    usa_brevo = bool(BREVO_LOGIN and BREVO_KEY)
+    de = REMETENTE_DOMINIO if usa_brevo else REMETENTE
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = f"Ingresso cancelado · 1º Encontro do Hub · Pedido #{pedido}"
+    msg["From"] = formataddr(("Hub de Empreendedores Católicos", de))
+    msg["To"] = destino
+    msg["Reply-To"] = REMETENTE
+    plural = "os ingressos" if n > 1 else "o ingresso"
+    qr = "os QR Codes enviados não são mais válidos" if n > 1 else "o QR Code enviado não é mais válido"
+    texto = (f"Olá, {nome}. O pagamento do pedido #{pedido} foi estornado, por isso {plural} do 1º Encontro do Hub "
+             f"(14/11) foi cancelado e {qr} na entrada.\n\n"
+             "Se foi um engano ou você ainda quer participar, é só fazer uma nova compra em "
+             "https://hubdeempreendedores.usevox.com.br ou chamar a gente no WhatsApp (21) 99658-8197.")
+    html = f"""<!doctype html><html><body style="margin:0;background:#F6F2EF">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#F6F2EF;padding:24px 0"><tr><td align="center">
+<table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%">
+  <tr><td style="background:#4A1C2F;border-radius:16px 16px 0 0;padding:26px 28px">
+    <div style="font:300 14px Arial,sans-serif;letter-spacing:6px;color:#F5EEE6">HUB</div>
+    <div style="font:italic 15px Georgia,serif;color:#D9C7B9">de Empreendedores Católicos</div>
+    <div style="font:600 26px Georgia,serif;color:#F5EEE6;margin-top:18px;line-height:1.2">Seu ingresso foi cancelado</div>
+  </td></tr>
+  <tr><td style="background:#FFFFFF;padding:24px 28px;font:15px/1.6 Arial,sans-serif;color:#2B1E23;border-radius:0 0 16px 16px">
+    Olá, {nome}.<br><br>
+    O pagamento do <b>pedido #{pedido}</b> foi estornado. Por isso {plural} do 1º Encontro do Hub (sábado, 14/11) foi
+    cancelado e <b>{qr}</b> na entrada.<br><br>
+    Se foi um engano ou você ainda quer participar, é só fazer uma nova compra:
+    <div style="margin:18px 0"><a href="https://hubdeempreendedores.usevox.com.br" style="display:inline-block;background:#5A2439;color:#F5EEE6;text-decoration:none;font:600 14px Arial,sans-serif;padding:12px 22px;border-radius:999px">Garantir meu lugar</a></div>
+    Dúvidas? Fale com a gente no WhatsApp (21) 99658-8197.
+  </td></tr>
+</table></td></tr></table></body></html>"""
+    msg.attach(MIMEText(texto, "plain", "utf-8"))
+    msg.attach(MIMEText(html, "html", "utf-8"))
+    smtp_enviar(de, destino, msg, usa_brevo)
 
 
 # ---------- WhatsApp para o Ramon ----------
@@ -272,6 +312,31 @@ def aviso_venda(nome, fone, pedido, n, gateway, codigos, restam):
             f"📱 {fone or '-'}\n🧾 Pedido #{pedido}{estoque}\n✉️ E-mail com o QR já enviado.\n"
             f"👉 Abrir conversa: {conversa}\n📋 Na próxima mensagem vai o texto para copiar e colar.")
     return [info, msg_cliente]
+
+
+# ---------- ingressos cancelados ----------
+BLOQ_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bloqueados.json")
+
+
+def bloquear(pedido, n, status):
+    """Grava os ingressos do pedido na lista de cancelados (só número do pedido e do ingresso, sem dados pessoais).
+    A Portaria usa a chave PEDIDO-I para recusar a entrada."""
+    try:
+        with open(BLOQ_FILE, encoding="utf-8") as f:
+            lista = json.load(f)
+    except FileNotFoundError:
+        lista = []
+    chaves = {x["chave"] for x in lista}
+    motivo = {"refunded": "Pagamento estornado.", "voided": "Pagamento anulado.",
+              "chargeback": "Contestação de pagamento (chargeback).", "cancelled": "Pedido cancelado."}.get(status, status)
+    for i in range(1, n + 1):
+        k = f"{pedido}-{i}"
+        if k not in chaves:
+            lista.append({"chave": k, "pedido": pedido, "motivo": motivo,
+                          "em": datetime.now(BRT).isoformat(timespec="seconds")})
+    with open(BLOQ_FILE, "w", encoding="utf-8") as f:
+        json.dump(lista, f, ensure_ascii=False, indent=2)
+        f.write("\n")
 
 
 # ---------- estado ----------
@@ -355,14 +420,32 @@ def main():
         print(f"Pedido #{pedido}: {n} ingresso(s) emitido(s).")
 
     avisados = set(map(str, st["cancelamentos_avisados"]))
+    cancelados = []
     for status in ("refunded", "voided", "chargeback"):
-        for o in pedidos(status):
-            if str(o["id"]) in feitos and str(o["id"]) not in avisados and qtd_ingressos(o):
-                avisar_ramon(f"⚠️ Pedido #{o.get('number')} foi {status}. Peça ao Claude para bloquear "
-                             f"esse ingresso na Portaria.")
-                st["cancelamentos_avisados"].append(str(o["id"]))
-                avisados.add(str(o["id"]))
-                salvar_estado(st)
+        cancelados += [(status, o) for o in pedidos(status)]
+    cancelados += [("cancelled", o) for o in (api("orders", {"status": "cancelled", "created_at_min": INICIO_VENDAS,
+                                                              "per_page": 200}) or [])]
+    for status, o in cancelados:
+        if str(o["id"]) not in feitos or str(o["id"]) in avisados or not qtd_ingressos(o):
+            continue
+        pedido, n = o.get("number"), qtd_ingressos(o)
+        cust = o.get("customer") or {}
+        nome = ((o.get("contact_name") or cust.get("name") or "").strip() or "Participante").split(" ")[0]
+        email = (o.get("contact_email") or cust.get("email") or "").strip()
+        bloquear(pedido, n, status)
+        enviado = False
+        if email:
+            try:
+                enviar_cancelamento(email, nome, pedido, n)
+                enviado = True
+            except Exception as e:
+                print(f"Pedido #{pedido}: falha no e-mail de cancelamento ({type(e).__name__}).")
+        avisar_ramon(f"⚠️ Pedido #{pedido} foi {status}. {n} ingresso(s) bloqueado(s) na lista de cancelados. "
+                     + ("O cliente foi avisado por e-mail que o QR não vale mais." if enviado
+                        else "Não consegui avisar o cliente por e-mail: avise pelo WhatsApp."))
+        st["cancelamentos_avisados"].append(str(o["id"]))
+        avisados.add(str(o["id"]))
+        salvar_estado(st)
 
     print(f"Rodada concluída: {novos} pedido(s) novo(s).")
 
