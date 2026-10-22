@@ -44,6 +44,8 @@ SECRET = os.environ.get("TICKET_SECRET", "")
 TOKEN = os.environ.get("NUVEMSHOP_TOKEN", "")
 GMAIL_PASS = os.environ.get("GMAIL_APP_PASSWORD", "").replace(" ", "")
 WA_FONE = os.environ.get("WHATSAPP_FONE", "")
+TG_TOKEN = os.environ.get("TELEGRAM_TOKEN", "")
+TG_CHAT = os.environ.get("TELEGRAM_CHAT_ID", "")
 WA_KEY = os.environ.get("CALLMEBOT_APIKEY", "")
 TESTE = os.environ.get("TESTE", "").lower() in ("1", "true", "sim")
 
@@ -203,7 +205,21 @@ def so_digitos(fone):
     return d
 
 
+def avisar_telegram(texto):
+    if not (TG_TOKEN and TG_CHAT):
+        return False
+    try:
+        r = requests.post(f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage",
+                          data={"chat_id": TG_CHAT, "text": texto, "disable_web_page_preview": "true"}, timeout=30)
+        print("Aviso no Telegram:", r.status_code)
+        return r.ok
+    except Exception as e:
+        print("Aviso no Telegram falhou:", type(e).__name__)
+        return False
+
+
 def avisar_ramon(texto):
+    avisar_telegram(texto)
     if not (WA_FONE and WA_KEY):
         print("Aviso no WhatsApp ignorado: segredos do CallMeBot não configurados.")
         return
@@ -227,7 +243,8 @@ def aviso_venda(nome, fone, pedido, n, gateway, codigos, restam):
     estoque = f"\n🔢 Restam {restam} no lote atual" if restam is not None else ""
     return (f"🎟️ Ingresso vendido! 1º Encontro do Hub\n👤 {nome} · {n} ingresso(s) · {gateway}\n"
             f"📱 {fone or '-'}\n🧾 Pedido #{pedido}{estoque}\n✉️ E-mail com o QR já enviado.\n"
-            f"👉 Mandar no WhatsApp dele(a): {wa}")
+            f"👉 Mandar no WhatsApp dele(a): {wa}\n\n"
+            f"📋 Ou copie e cole no WhatsApp dele(a):\n{msg_cliente}")
 
 
 # ---------- estado ----------

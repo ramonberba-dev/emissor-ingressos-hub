@@ -37,6 +37,8 @@ jobs:
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           WHATSAPP_FONE: ${{ secrets.WHATSAPP_FONE }}
           CALLMEBOT_APIKEY: ${{ secrets.CALLMEBOT_APIKEY }}
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           TESTE: ${{ inputs.teste }}
         run: python emissor.py
       - name: Guardar pedidos processados
