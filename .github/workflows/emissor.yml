@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
     paths: [".github/workflows/emissor.yml", "emissor.py", "aviso_teste.flag"]
+  repository_dispatch:
+    types: [pedido_pago]   # disparado pelo aviso de pedido pago da Nuvemshop (via Apps Script)
   schedule:
     - cron: "*/10 * * * *"
   workflow_dispatch:
@@ -39,6 +41,8 @@ jobs:
           CALLMEBOT_APIKEY: ${{ secrets.CALLMEBOT_APIKEY }}
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          BREVO_SMTP_LOGIN: ${{ secrets.BREVO_SMTP_LOGIN }}
+          BREVO_SMTP_KEY: ${{ secrets.BREVO_SMTP_KEY }}
           TESTE: ${{ inputs.teste }}
         run: python emissor.py
       - name: Guardar pedidos processados

@@ -36,6 +36,11 @@ PORTARIA_URL = "https://claude.ai/artifact/3cWR4VGqfT63zWuGrsrjU6"
 TICKET_PAGE = "https://hubdeempreendedores.usevox.com.br/ingresso/"
 FORM_URL = "https://hubdeempreendedores.usevox.com.br/formulario/?pedido="   # formulário dos participantes
 REMETENTE = "ramonberba@gmail.com"
+# E-mail transacional (Brevo) com remetente do domínio: entra na caixa de entrada com mais frequência.
+# Se os segredos do Brevo não estiverem cadastrados, o envio continua pelo Gmail.
+BREVO_LOGIN = os.environ.get("BREVO_SMTP_LOGIN", "")
+BREVO_KEY = os.environ.get("BREVO_SMTP_KEY", "")
+REMETENTE_DOMINIO = os.environ.get("REMETENTE_DOMINIO", "ingressos@usevox.com.br")
 INICIO_VENDAS = "2026-10-16T00:00:00-03:00"
 FIM = datetime(2026, 11, 15, 3, 0, tzinfo=timezone.utc)  # depois do evento, para de rodar
 STATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "state.json")
@@ -174,7 +179,9 @@ def email_html(nome, pedido, ingressos):
 def enviar_email(destino, nome, pedido, codigos):
     msg = MIMEMultipart("related")
     msg["Subject"] = f"Seu ingresso · 1º Encontro do Hub (14/11) · Pedido #{pedido}"
-    msg["From"] = formataddr(("Hub de Empreendedores Católicos", REMETENTE))
+    usa_brevo = bool(BREVO_LOGIN and BREVO_KEY)
+    de = REMETENTE_DOMINIO if usa_brevo else REMETENTE
+    msg["From"] = formataddr(("Hub de Empreendedores Católicos", de))
     msg["To"] = destino
     msg["Reply-To"] = REMETENTE
     ingressos = [(c, f"qr{k}") for k, c in enumerate(codigos, 1)]
@@ -192,6 +199,12 @@ def enviar_email(destino, nome, pedido, codigos):
         img.add_header("Content-ID", f"<{cid}>")
         img.add_header("Content-Disposition", "inline", filename=f"ingresso-{cod[:12]}.png")
         msg.attach(img)
+    if usa_brevo:
+        with smtplib.SMTP("smtp-relay.brevo.com", 587, timeout=60) as s:
+            s.starttls()
+            s.login(BREVO_LOGIN, BREVO_KEY)
+            s.sendmail(de, [destino], msg.as_string())
+        return
     with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=60) as s:
         s.login(REMETENTE, GMAIL_PASS)
         s.sendmail(REMETENTE, [destino], msg.as_string())
@@ -282,7 +295,7 @@ def salvar_estado(st):
 
 
 def main():
-    faltando = [k for k, v in {"TICKET_SECRET": SECRET, "GMAIL_APP_PASSWORD": GMAIL_PASS}.items() if not v]
+    faltando = [k for k, v in {"TICKET_SECRET": SECRET, "GMAIL_APP_PASSWORD ou BREVO": GMAIL_PASS or (BREVO_LOGIN and BREVO_KEY)}.items() if not v]
     if not TESTE and not TOKEN:
         faltando.append("NUVEMSHOP_TOKEN")
     if faltando:
