@@ -1,6 +1,9 @@
 name: Emissor de ingressos
 
 on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/emissor.yml", "emissor.py"]
   schedule:
     - cron: "*/10 * * * *"
   workflow_dispatch:
